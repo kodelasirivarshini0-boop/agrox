@@ -1,10 +1,9 @@
 
-
-
 import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
-import AddProduct from "./AddProduct";
 import Auth from "./Auth";
+import Dashboard from "./Dashboard";
+import "./App.css";
 
 const API_URL = "http://localhost:5000/api/products";
 
@@ -18,54 +17,59 @@ function Marketplace() {
       const savedUser = localStorage.getItem("agroxUser");
       const savedToken = localStorage.getItem("agroxToken");
 
-      return savedUser && savedToken
-        ? JSON.parse(savedUser)
-        : null;
-    } catch {
-      return null;
+      if (savedUser && savedToken) {
+        return JSON.parse(savedUser);
+      }
+    } catch (err) {
+      console.error("Could not restore Agrox session:", err);
     }
+
+    return null;
   });
 
-  // Load products from the backend
+  // Load products for the public marketplace.
   const fetchProducts = useCallback(async () => {
-    try {
-      setError("");
+    setLoading(true);
+    setError("");
 
+    try {
       const response = await axios.get(API_URL);
       setProducts(response.data);
     } catch (err) {
       console.error("Error fetching products:", err);
+
       setError(
-        "Unable to load products. Check that the backend and MongoDB are running."
+        "Unable to load products. Please check that the backend and MongoDB are running."
       );
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // Handle successful registration or login.
+  function handleLoginSuccess({ token, user }) {
+    localStorage.setItem("agroxToken", token);
+    localStorage.setItem("agroxUser", JSON.stringify(user));
+
+    setCurrentUser(user);
+    setError("");
+  }
+
+  // Log out the current user.
+  function handleLogout() {
+    localStorage.removeItem("agroxToken");
+    localStorage.removeItem("agroxUser");
+
+    setCurrentUser(null);
+  }
+
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
-  // Update the displayed account after registration or login
-  const handleLoginSuccess = (data) => {
-    if (!data?.token || !data?.user) {
-      setError("Authentication succeeded without account details.");
-      return;
-    }
-
-    setCurrentUser(data.user);
-  };
-
-  // Clear the browser's saved session
-  const handleLogout = () => {
-    localStorage.removeItem("agroxToken");
-    localStorage.removeItem("agroxUser");
-    setCurrentUser(null);
-  };
-
   return (
     <div className="marketplace-page">
+      {/* Navigation */}
       <nav className="navbar">
         <a className="logo" href="#home">
           🌱 Agrox
@@ -74,13 +78,18 @@ function Marketplace() {
         <div className="nav-links">
           <a href="#home">Home</a>
           <a href="#products">Marketplace</a>
-          <a href="#add-product">Add Product</a>
+
+          {currentUser?.role === "farmer" && (
+            <a href="#dashboard-add-product">Add Product</a>
+          )}
+
           <a href="#account">
-            {currentUser ? "My Account" : "Login / Register"}
+            {currentUser ? "Dashboard" : "Login / Register"}
           </a>
         </div>
       </nav>
 
+      {/* Hero section */}
       <header className="hero" id="home">
         <div className="hero-content">
           <p className="hero-tagline">
@@ -104,48 +113,25 @@ function Marketplace() {
         </div>
       </header>
 
-      {/* Account section */}
-      <section className="account-section" id="account">
+      {/* Show either the login form or one role-specific dashboard */}
+      <section id="account">
         {currentUser ? (
-          <div className="account-card">
-            <p className="section-label">MY AGROX ACCOUNT</p>
-
-            <h2>Welcome, {currentUser.name}!</h2>
-
-            <p>
-              Account type:{" "}
-              <strong>
-                {currentUser.role === "farmer" ? "Farmer" : "Buyer"}
-              </strong>
-            </p>
-
-            {currentUser.location && (
-              <p>Location: {currentUser.location}</p>
-            )}
-
-            <button
-              type="button"
-              className="logout-button"
-              onClick={handleLogout}
-            >
-              Logout
-            </button>
-          </div>
+          <Dashboard
+            user={currentUser}
+            onLogout={handleLogout}
+          />
         ) : (
           <Auth onLoginSuccess={handleLoginSuccess} />
         )}
       </section>
 
-      {/* Add Product form */}
-      <section id="add-product">
-        <AddProduct onProductAdded={fetchProducts} />
-      </section>
-
-      {/* Marketplace */}
+      {/* Public marketplace */}
       <main className="products-section" id="products">
         <div className="section-heading">
           <p className="section-label">AGROX MARKETPLACE</p>
+
           <h2>Fresh From Our Farmers</h2>
+
           <p>
             Discover agricultural products listed on Agrox.
           </p>
@@ -158,6 +144,7 @@ function Marketplace() {
         {!loading && error && (
           <div className="status-message error-message">
             <p>{error}</p>
+
             <button type="button" onClick={fetchProducts}>
               Try Again
             </button>
@@ -166,18 +153,17 @@ function Marketplace() {
 
         {!loading && !error && products.length === 0 && (
           <p className="status-message">
-            No products available yet. Add the first product!
+            No products available yet. Farmers can add the first product.
           </p>
         )}
 
         {!loading && !error && products.length > 0 && (
           <div className="products-grid">
             {products.map((product) => (
-              <article
-                className="product-card"
-                key={product._id}
-              >
-                <div className="product-icon">🌾</div>
+              <article className="product-card" key={product._id}>
+                <div className="product-icon" aria-hidden="true">
+                  🌾
+                </div>
 
                 <div className="product-details">
                   <span className="product-category">
@@ -187,7 +173,7 @@ function Marketplace() {
                   <h3>{product.name}</h3>
 
                   <p className="farmer-name">
-                    👨‍🌾 {product.farmerName || "Demo Farmer"}
+                    👨‍🌾 {product.farmerName || "Agrox Farmer"}
                   </p>
 
                   {product.location && (
@@ -201,6 +187,7 @@ function Marketplace() {
                       <span className="info-label">
                         Available quantity
                       </span>
+
                       <p>{product.quantity} kg</p>
                     </div>
 
@@ -208,6 +195,7 @@ function Marketplace() {
                       <span className="info-label">
                         Price per kg
                       </span>
+
                       <p className="product-price">
                         ₹{Number(product.pricePerKg).toFixed(2)}
                       </p>
@@ -218,13 +206,25 @@ function Marketplace() {
             ))}
           </div>
         )}
+
+        <button
+          type="button"
+          className="secondary-button refresh-products-button"
+          onClick={fetchProducts}
+          disabled={loading}
+        >
+          {loading ? "Refreshing..." : "Refresh Marketplace"}
+        </button>
       </main>
 
+      {/* Footer */}
       <footer className="footer">
         <h2>🌱 Agrox</h2>
+
         <p>
           Building a better connection between farmers and buyers.
         </p>
+
         <p className="footer-note">
           © {new Date().getFullYear()} Agrox. All rights reserved.
         </p>

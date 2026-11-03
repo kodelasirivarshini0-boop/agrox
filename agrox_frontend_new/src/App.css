@@ -329,3 +329,387 @@ body {
   font-weight: 700;
   cursor: pointer;
 }
+
+/* ===== Farmer and Buyer dashboards ===== */
+
+.dashboard-section {
+  max-width: 1100px;
+  margin: 30px auto;
+  padding: 0 20px;
+}
+
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 28px;
+  border-radius: 16px;
+  background: #e8f2e3;
+}
+
+.dashboard-header h2 {
+  margin: 10px 0;
+  color: #203b2b;
+  font-size: 30px;
+}
+
+.dashboard-header p {
+  color: #566b5b;
+  line-height: 1.6;
+}
+
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 22px 0;
+}
+
+.dashboard-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 22px;
+  border: 1px solid #e1e9de;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.dashboard-stat-card span {
+  color: #6a796d;
+  font-size: 13px;
+}
+
+.dashboard-stat-card strong {
+  overflow-wrap: anywhere;
+  color: #247443;
+  font-size: 20px;
+}
+
+.dashboard-panel {
+  margin: 22px 0;
+  padding: 26px;
+  border: 1px solid #e1e9de;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.dashboard-panel h3 {
+  margin-top: 0;
+  color: #203b2b;
+}
+
+.dashboard-panel > p,
+.dashboard-panel-heading p {
+  color: #667568;
+  line-height: 1.6;
+}
+
+.dashboard-panel .add-product-section {
+  width: 100%;
+  max-width: none;
+  margin: 22px 0 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.dashboard-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.secondary-button {
+  padding: 10px 16px;
+  border: 1px solid #247443;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #247443;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.secondary-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dashboard-listings {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.dashboard-listing {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid #e6ece3;
+  border-radius: 10px;
+}
+
+.dashboard-listing h4 {
+  margin: 0 0 8px;
+  color: #203b2b;
+}
+
+.dashboard-listing p {
+  margin: 0;
+  color: #667568;
+  font-size: 14px;
+}
+
+.listing-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  text-align: right;
+}
+
+.listing-price strong {
+  color: #247443;
+}
+
+.listing-price span {
+  color: #667568;
+  font-size: 13px;
+}
+
+.buyer-dashboard-panel .hero-button {
+  margin-bottom: 12px;
+}
+
+.dashboard-note {
+  font-size: 13px;
+}
+
+@media (max-width: 600px) {
+  .dashboard-header {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 22px;
+  }
+
+  .dashboard-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-panel {
+    padding: 20px;
+  }
+
+  .dashboard-panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dashboard-listing {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .listing-price {
+    align-items: flex-start;
+    text-align: left;
+  }
+}
+
+/* ===== Agrox ordering system ===== */
+
+.buyer-products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.buyer-product-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid #e0e9dc;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.buyer-product-card h4 {
+  margin: 0;
+  color: #214d31;
+  font-size: 20px;
+}
+
+.buyer-product-card p {
+  margin: 0;
+  color: #596c5d;
+  overflow-wrap: anywhere;
+}
+
+.buyer-product-card label {
+  margin-top: 8px;
+  color: #334b39;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.buyer-product-card input {
+  width: 100%;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid #cfdccc;
+  border-radius: 7px;
+  font: inherit;
+}
+
+.buyer-product-price {
+  color: #247443 !important;
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.order-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.order-card {
+  padding: 20px;
+  border: 1px solid #e0e9dc;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.order-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.order-card-heading h4 {
+  margin: 0 0 8px;
+  color: #214d31;
+  font-size: 19px;
+}
+
+.order-card-heading p {
+  margin: 0;
+  color: #718074;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.order-status {
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 20px;
+  background: #eef1ee;
+  color: #435348;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.status-pending {
+  background: #fff2d6;
+  color: #805900;
+}
+
+.status-accepted {
+  background: #e1f1e5;
+  color: #216b3c;
+}
+
+.status-rejected {
+  background: #fde8e7;
+  color: #a12d2d;
+}
+
+.status-completed {
+  background: #e2ebff;
+  color: #254e99;
+}
+
+.order-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px 18px;
+  margin: 18px 0;
+}
+
+.order-details p {
+  margin: 0;
+  color: #596c5d;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.order-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.order-accept-button,
+.order-reject-button {
+  padding: 11px 16px;
+  border: none;
+  border-radius: 8px;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.order-accept-button {
+  background: #247443;
+}
+
+.order-reject-button {
+  background: #b93c3c;
+}
+
+.order-accept-button:disabled,
+.order-reject-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.success-message {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: #e3f4e7;
+  color: #216b3c;
+}
+
+.error-message {
+  color: #a12d2d;
+}
+
+@media (max-width: 600px) {
+  .order-card {
+    padding: 15px;
+  }
+
+  .order-card-heading {
+    flex-direction: column;
+  }
+
+  .order-actions {
+    flex-direction: column;
+  }
+
+  .order-actions button {
+    width: 100%;
+  }
+}
+
