@@ -6,62 +6,64 @@ const User = require("../models/User");
 
 const router = express.Router();
 
-function createToken(user) {
+// Generate a JWT compatible with the existing authMiddleware.js.
+function generateToken(user) {
+  const secret = process.env.JWT_SECRET;
+
+  if (!secret) {
+    throw new Error("JWT_SECRET is not configured.");
+  }
+
   return jwt.sign(
     {
-      userId: user._id.toString(),
-      role: user.role,
+      userId: String(user._id),
+      role: String(user.role).trim().toLowerCase(),
     },
-    process.env.JWT_SECRET,
-    { expiresIn: "1d" }
+    secret,
+    { expiresIn: "7d" }
   );
 }
 
-// REGISTER: POST /api/auth/register
+// Return public user details only. Never return the password hash.
+function formatUser(user) {
+  return {
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    role: String(user.role).trim().toLowerCase(),
+    location: user.location || "",
+  };
+}
+
+// POST /api/auth/register
 router.post("/register", async (req, res) => {
   try {
     const { name, email, password, role, location } = req.body;
 
-    if (!name || !email || !password || !role) {
-      return res.status(400).json({
-        message: "Name, email, password and role are required.",
-      });
-    }
-
-    if (!["farmer", "buyer"].includes(role)) {
-      return res.status(400).json({
-        message: "Role must be farmer or buyer.",
-      });
-    }
-
-    if (typeof name !== "string" || name.trim().length < 2) {
-      return res.status(400).json({
-        message: "Name must contain at least 2 characters.",
-      });
-    }
-
     if (
+      typeof name !== "string" ||
+      !name.trim() ||
       typeof email !== "string" ||
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
+      !email.trim() ||
+      typeof password !== "string" ||
+      password.length < 6
     ) {
       return res.status(400).json({
-        message: "Please enter a valid email address.",
-      });
-    }
-
-    if (typeof password !== "string" || password.length < 8) {
-      return res.status(400).json({
-        message: "Password must be at least 8 characters long.",
-      });
-    }
-
-    if (location !== undefined && typeof location !== "string") {
-      return res.status(400).json({
-        message: "Location must be text.",
+        message:
+          "Name, email, and a password of at least 6 characters are required.",
       });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+    const normalizedRole = String(role || "buyer")
+      .trim()
+      .toLowerCase();
+
+    if (!["buyer", "farmer"].includes(normalizedRole)) {
+      return res.status(400).json({
+        message: "Role must be buyer or farmer.",
+      });
+    }
 
     const existingUser = await User.findOne({
       email: normalizedEmail,
@@ -73,53 +75,55 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+    // Keep the same bcrypt password format used by the existing app.
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
       name: name.trim(),
       email: normalizedEmail,
       password: hashedPassword,
-      role,
-      location: location ? location.trim() : "",
+      role: normalizedRole,
+      location:
+        typeof location === "string" ? location.trim() : "",
     });
 
-    const token = createToken(user);
+    const token = generateToken(user);
 
     return res.status(201).json({
-      message: "Registration successful!",
+      message: "Registration successful.",
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        location: user.location,
-      },
+      user: formatUser(user),
     });
   } catch (error) {
+    console.error("Registration error:", error);
+
     if (error.code === 11000) {
       return res.status(409).json({
         message: "An account with this email already exists.",
       });
     }
 
-    console.error("Registration error:", error);
+    if (error.name === "ValidationError") {
+      return res.status(400).json({
+        message: error.message,
+      });
+    }
 
     return res.status(500).json({
-      message: "Registration failed due to a server error.",
+      message: "Unable to register. Please try again.",
     });
   }
 });
 
-// LOGIN: POST /api/auth/login
+// POST /api/auth/login
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
     if (
       typeof email !== "string" ||
-      typeof password !== "string" ||
       !email.trim() ||
+      typeof password !== "string" ||
       !password
     ) {
       return res.status(400).json({
@@ -127,6 +131,9 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    // IMPORTANT:
+    // User.js defines password with select: false.
+    // Explicitly select it so bcrypt can verify existing accounts.
     const user = await User.findOne({
       email: email.trim().toLowerCase(),
     }).select("+password");
@@ -134,6 +141,17 @@ router.post("/login", async (req, res) => {
     if (!user) {
       return res.status(401).json({
         message: "Invalid email or password.",
+      });
+    }
+
+    if (!user.password) {
+      console.error(
+        "Login failed: password hash is missing for user",
+        String(user._id)
+      );
+
+      return res.status(500).json({
+        message: "Unable to verify this account's password.",
       });
     }
 
@@ -148,24 +166,28 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const token = createToken(user);
+    const normalizedRole = String(user.role || "")
+      .trim()
+      .toLowerCase();
+
+    if (!["buyer", "farmer"].includes(normalizedRole)) {
+      return res.status(403).json({
+        message: "This account has an invalid role.",
+      });
+    }
+
+    const token = generateToken(user);
 
     return res.status(200).json({
-      message: "Login successful!",
+      message: "Login successful.",
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        location: user.location,
-      },
+      user: formatUser(user),
     });
   } catch (error) {
     console.error("Login error:", error);
 
     return res.status(500).json({
-      message: "Login failed due to a server error.",
+      message: "Unable to log in. Please try again.",
     });
   }
 });

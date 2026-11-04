@@ -3,474 +3,491 @@ import { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import AddProduct from "./AddProduct";
 
-const API = "http://localhost:5000/api";
+const API_URL = "http://localhost:5000/api";
 
 function Dashboard({ user, onLogout }) {
-  const [products, setProducts] = useState([]);
-  const [myProducts, setMyProducts] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [quantities, setQuantities] = useState({});
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [busyProduct, setBusyProduct] = useState("");
-  const [busyOrder, setBusyOrder] = useState("");
+  const [updatingOrderId, setUpdatingOrderId] = useState(null);
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const token = localStorage.getItem("agroxToken");
-  const isFarmer = user?.role === "farmer";
+  const role = String(user?.role || "").trim().toLowerCase();
+  const isFarmer = role === "farmer";
+  const isBuyer = role === "buyer";
 
-  const authConfig = {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+  const getAuthConfig = () => {
+    const token = localStorage.getItem("agroxToken");
+
+    return {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    };
   };
 
-  const loadDashboard = useCallback(async (showLoader = true) => {
-    if (showLoader) setLoading(true);
+  const fetchOrders = useCallback(async () => {
+    if (!isFarmer && !isBuyer) {
+      setLoading(false);
+      setError("Invalid account role. Please log in again.");
+      return;
+    }
+
+    setLoading(true);
     setError("");
 
     try {
-      if (isFarmer) {
-        const [productsResponse, ordersResponse] = await Promise.all([
-          axios.get(`${API}/products/mine`, authConfig),
-          axios.get(`${API}/orders/farmer`, authConfig),
-        ]);
+      const endpoint = isFarmer
+        ? `${API_URL}/orders/farmer`
+        : `${API_URL}/orders/mine`;
 
-        setMyProducts(
-          Array.isArray(productsResponse.data)
-            ? productsResponse.data
-            : []
-        );
+      const response = await axios.get(
+        endpoint,
+        getAuthConfig()
+      );
 
-        setOrders(
-          Array.isArray(ordersResponse.data)
-            ? ordersResponse.data
-            : []
-        );
-      } else {
-        const [productsResponse, ordersResponse] = await Promise.all([
-          axios.get(`${API}/products`, authConfig),
-          axios.get(`${API}/orders/mine`, authConfig),
-        ]);
-
-        setProducts(
-          Array.isArray(productsResponse.data)
-            ? productsResponse.data
-            : []
-        );
-
-        setOrders(
-          Array.isArray(ordersResponse.data)
-            ? ordersResponse.data
-            : []
-        );
-      }
+      setOrders(
+        Array.isArray(response.data) ? response.data : []
+      );
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Unable to load dashboard data. Please check your connection."
+          "Unable to load orders. Please try again."
       );
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  }, [isFarmer, token]);
+  }, [isFarmer, isBuyer]);
 
   useEffect(() => {
-    loadDashboard();
-  }, [loadDashboard]);
+    fetchOrders();
+  }, [fetchOrders]);
 
-  const refreshOrders = async () => {
-    setRefreshing(true);
-    await loadDashboard(false);
-  };
-
-  const handlePlaceOrder = async (product) => {
-    const quantity = Number(quantities[product._id]);
-
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      setError("Enter a valid order quantity greater than zero.");
+  const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    if (!isFarmer) {
+      setError("Only farmers can update order status.");
       return;
     }
 
-    if (quantity > Number(product.quantity)) {
-      setError("Your order exceeds the available stock.");
+    if (!orderId) {
+      setError("Order ID is missing.");
       return;
     }
 
-    setBusyProduct(product._id);
     setError("");
-    setMessage("");
-
-    try {
-      const response = await axios.post(
-        `${API}/orders`,
-        {
-          productId: product._id,
-          quantity,
-        },
-        authConfig
-      );
-
-      setMessage(response.data.message || "Order placed successfully!");
-
-      setQuantities((previous) => ({
-        ...previous,
-        [product._id]: "",
-      }));
-
-      await loadDashboard(false);
-    } catch (err) {
-      setError(
-        err.response?.data?.message || "Unable to place your order."
-      );
-
-      await loadDashboard(false);
-    } finally {
-      setBusyProduct("");
-    }
-  };
-
-  const handleOrderStatus = async (orderId, status) => {
-    setBusyOrder(orderId);
-    setError("");
-    setMessage("");
+    setSuccess("");
+    setUpdatingOrderId(orderId);
 
     try {
       const response = await axios.patch(
-        `${API}/orders/${orderId}/status`,
-        { status },
-        authConfig
+        `${API_URL}/orders/${orderId}/status`,
+        { status: newStatus },
+        getAuthConfig()
       );
 
-      setMessage(response.data.message || "Order updated successfully.");
-      await loadDashboard(false);
+      const updatedOrder = response.data?.order;
+
+      if (updatedOrder) {
+        setOrders((previousOrders) =>
+          previousOrders.map((order) =>
+            order._id === updatedOrder._id
+              ? updatedOrder
+              : order
+          )
+        );
+      }
+
+      setSuccess(
+        response.data?.message ||
+          `Order ${newStatus} successfully.`
+      );
+
+      // Reload the server data to ensure the displayed status
+      // matches the order stored in MongoDB.
+      await fetchOrders();
     } catch (err) {
       setError(
-        err.response?.data?.message || "Unable to update order status."
+        err.response?.data?.message ||
+          "Unable to update order status. Please try again."
       );
     } finally {
-      setBusyOrder("");
+      setUpdatingOrderId(null);
     }
   };
 
-  const formatDate = (date) => {
-    if (!date) return "Date unavailable";
-
-    const parsedDate = new Date(date);
-
-    return Number.isNaN(parsedDate.getTime())
-      ? "Date unavailable"
-      : parsedDate.toLocaleString();
-  };
-
-  const formatMoney = (amount) =>
-    `₹${Number(amount || 0).toFixed(2)}`;
-
-  const totalSpent = orders.reduce(
+  const totalOrderValue = orders.reduce(
     (total, order) => total + Number(order.totalPrice || 0),
     0
   );
 
-  if (!user) return null;
+  const pendingOrders = orders.filter(
+    (order) => order.status === "pending"
+  ).length;
+
+  const formatDate = (date) => {
+    if (!date) return "Date unavailable";
+
+    return new Date(date).toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const statusClass = (status) => {
+    switch (status) {
+      case "accepted":
+        return "accepted";
+      case "rejected":
+        return "rejected";
+      case "completed":
+        return "completed";
+      default:
+        return "pending";
+    }
+  };
 
   return (
-    <div className="dashboard">
-      <header className="dashboard-header">
+    <section
+      style={{
+        maxWidth: "1100px",
+        margin: "0 auto",
+        padding: "32px 20px",
+        color: "#183d2b",
+      }}
+    >
+      <header
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "20px",
+          marginBottom: "24px",
+        }}
+      >
         <div>
-          <p className="dashboard-eyebrow">
+          <p
+            style={{
+              color: "#64806d",
+              fontSize: "13px",
+              letterSpacing: "1px",
+            }}
+          >
             AGROX {isFarmer ? "FARMER" : "BUYER"} DASHBOARD
           </p>
 
-          <h2>Welcome, {user.name}!</h2>
+          <h1 style={{ marginBottom: "8px" }}>
+            Welcome, {user?.name || "User"}!
+          </h1>
 
-          <p>
+          <p style={{ color: "#718477" }}>
             {isFarmer
-              ? "Manage your listings and incoming orders."
+              ? "Manage your products and incoming orders."
               : "Explore farm produce and manage your orders."}
           </p>
         </div>
 
         <button
-          className="secondary-button"
           type="button"
           onClick={onLogout}
+          style={{
+            padding: "12px 20px",
+            background: "#ffffff",
+            border: "1px solid #d7e2d8",
+            borderRadius: "8px",
+            cursor: "pointer",
+          }}
         >
           Logout
         </button>
       </header>
 
-      <div className="dashboard-info">
+      <div
+        style={{
+          background: "#f3f8f1",
+          border: "1px solid #e0e9dc",
+          borderRadius: "12px",
+          padding: "20px",
+          marginBottom: "28px",
+          lineHeight: 1.9,
+        }}
+      >
         <p>
-          Account type: <strong>{user.role}</strong>
+          Account type: <strong>{role || "unknown"}</strong>
         </p>
 
         <p>
-          Location: <strong>{user.location || "Not specified"}</strong>
+          Location: <strong>{user?.location || "Not specified"}</strong>
         </p>
 
-        {isFarmer ? (
-          <p>
-            Incoming orders: <strong>{orders.length}</strong>
-          </p>
-        ) : (
-          <>
-            <p>
-              Total orders: <strong>{orders.length}</strong>
-            </p>
-            <p>
-              Total order value: <strong>{formatMoney(totalSpent)}</strong>
-            </p>
-          </>
-        )}
+        <p>
+          {isFarmer ? "Incoming orders" : "Total orders"}:{" "}
+          <strong>{orders.length}</strong>
+        </p>
+
+        <p>
+          {isFarmer ? "Pending orders" : "Total order value"}:{" "}
+          <strong>
+            {isFarmer
+              ? pendingOrders
+              : `₹${totalOrderValue.toFixed(2)}`}
+          </strong>
+        </p>
       </div>
 
       {error && (
-        <div className="error-message" role="alert">
+        <div
+          role="alert"
+          style={{
+            padding: "14px",
+            marginBottom: "16px",
+            borderRadius: "8px",
+            color: "#b42318",
+            background: "#fff1f0",
+            border: "1px solid #ffc9c5",
+          }}
+        >
           {error}
+          <button
+            type="button"
+            onClick={() => setError("")}
+            style={{
+              float: "right",
+              border: 0,
+              background: "transparent",
+              cursor: "pointer",
+            }}
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
-      {message && (
-        <div className="success-message" role="status">
-          {message}
+      {success && (
+        <div
+          role="status"
+          style={{
+            padding: "14px",
+            marginBottom: "16px",
+            borderRadius: "8px",
+            color: "#216e39",
+            background: "#edf9ef",
+            border: "1px solid #c9e9cf",
+          }}
+        >
+          {success}
         </div>
       )}
 
-      {loading ? (
-        <p className="loading">Loading your dashboard...</p>
-      ) : (
-        <>
-          {isFarmer ? (
-            <>
-              <section className="dashboard-section">
-                <h3>Add a new agricultural product</h3>
-                <p>List your produce for buyers to discover.</p>
+      {isFarmer && (
+        <section style={{ marginBottom: "36px" }}>
+          <h2>Add a new agricultural product</h2>
+          <AddProduct />
+        </section>
+      )}
 
-                <AddProduct onProductAdded={() => loadDashboard(false)} />
-              </section>
+      <section>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "12px",
+            marginBottom: "20px",
+          }}
+        >
+          <h2>
+            {isFarmer ? "Incoming Orders" : "My Order History"}
+          </h2>
 
-              <section className="dashboard-section">
-                <h3>My product listings</h3>
+          <button
+            type="button"
+            onClick={fetchOrders}
+            disabled={loading}
+            style={{
+              padding: "10px 16px",
+              background: "#ffffff",
+              border: "1px solid #d7e2d8",
+              borderRadius: "8px",
+              cursor: loading ? "wait" : "pointer",
+            }}
+          >
+            {loading ? "Refreshing..." : "Refresh orders"}
+          </button>
+        </div>
 
-                {myProducts.length === 0 ? (
-                  <p className="empty-state">
-                    You haven't listed any products yet.
-                  </p>
-                ) : (
-                  <div className="products-grid">
-                    {myProducts.map((product) => (
-                      <article className="product-card" key={product._id}>
-                        <h4>{product.name}</h4>
-                        <p>Category: {product.category}</p>
-                        <p>
-                          Price: {formatMoney(product.pricePerKg)} / kg
-                        </p>
-                        <p>Available stock: {product.quantity} kg</p>
-                        <p>
-                          Location: {product.location || "Not specified"}
-                        </p>
-                      </article>
-                    ))}
+        {loading && <p>Loading orders...</p>}
+
+        {!loading && !error && orders.length === 0 && (
+          <div
+            style={{
+              padding: "30px 20px",
+              textAlign: "center",
+              background: "#f7faf6",
+              border: "1px solid #e0e9dc",
+              borderRadius: "12px",
+            }}
+          >
+            <h3>No orders yet</h3>
+            <p style={{ color: "#718477" }}>
+              {isFarmer
+                ? "Orders placed for your products will appear here."
+                : "Your placed orders will appear here."}
+            </p>
+          </div>
+        )}
+
+        {!loading && orders.length > 0 && (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(260px, 1fr))",
+              gap: "18px",
+            }}
+          >
+            {orders.map((order) => (
+              <article
+                key={order._id}
+                style={{
+                  padding: "20px",
+                  border: "1px solid #dce6da",
+                  borderRadius: "12px",
+                  background: "#ffffff",
+                  boxShadow: "0 2px 8px rgba(20, 60, 35, 0.04)",
+                }}
+              >
+                <h3 style={{ marginTop: 0 }}>
+                  {order.productName || "Agricultural product"}
+                </h3>
+
+                <p>
+                  Quantity: <strong>{order.quantity} kg</strong>
+                </p>
+
+                <p>
+                  Price per kg:{" "}
+                  <strong>
+                    ₹{Number(order.pricePerKg || 0).toFixed(2)}
+                  </strong>
+                </p>
+
+                <p>
+                  Total:{" "}
+                  <strong>
+                    ₹{Number(order.totalPrice || 0).toFixed(2)}
+                  </strong>
+                </p>
+
+                <p>
+                  Order date:{" "}
+                  <strong>{formatDate(order.createdAt)}</strong>
+                </p>
+
+                <p>
+                  Status:{" "}
+                  <strong
+                    className={`order-status ${statusClass(order.status)}`}
+                  >
+                    {order.status || "pending"}
+                  </strong>
+                </p>
+
+                {isFarmer && order.status === "pending" && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "10px",
+                      marginTop: "18px",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      disabled={updatingOrderId !== null}
+                      onClick={() =>
+                        handleUpdateOrderStatus(
+                          order._id,
+                          "accepted"
+                        )
+                      }
+                      style={{
+                        flex: 1,
+                        padding: "11px",
+                        color: "#ffffff",
+                        background: "#287747",
+                        border: "none",
+                        borderRadius: "7px",
+                        cursor: "pointer",
+                        opacity: updatingOrderId ? 0.6 : 1,
+                      }}
+                    >
+                      {updatingOrderId === order._id
+                        ? "Updating..."
+                        : "Accept Order"}
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={updatingOrderId !== null}
+                      onClick={() =>
+                        handleUpdateOrderStatus(
+                          order._id,
+                          "rejected"
+                        )
+                      }
+                      style={{
+                        flex: 1,
+                        padding: "11px",
+                        color: "#b42318",
+                        background: "#fff1f0",
+                        border: "1px solid #ffc9c5",
+                        borderRadius: "7px",
+                        cursor: "pointer",
+                        opacity: updatingOrderId ? 0.6 : 1,
+                      }}
+                    >
+                      Reject Order
+                    </button>
                   </div>
                 )}
-              </section>
 
-              <section className="dashboard-section">
-                <h3>Incoming orders</h3>
-
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={refreshOrders}
-                  disabled={refreshing}
-                >
-                  {refreshing ? "Refreshing..." : "Refresh orders"}
-                </button>
-
-                {orders.length === 0 ? (
-                  <p className="empty-state">
-                    You don't have any incoming orders yet.
-                  </p>
-                ) : (
-                  <div className="order-list">
-                    {orders.map((order) => (
-                      <article className="order-card" key={order._id}>
-                        <h4>{order.productName}</h4>
-                        <p>Quantity: {order.quantity} kg</p>
-                        <p>Total: {formatMoney(order.totalPrice)}</p>
-                        <p>
-                          Status:{" "}
-                          <span className={`order-status status-${order.status}`}>
-                            {order.status}
-                          </span>
-                        </p>
-                        <p>Ordered: {formatDate(order.createdAt)}</p>
-
-                        {order.status === "pending" && (
-                          <div className="order-actions">
-                            <button
-                              type="button"
-                              disabled={busyOrder === order._id}
-                              onClick={() =>
-                                handleOrderStatus(order._id, "accepted")
-                              }
-                            >
-                              {busyOrder === order._id ? "Updating..." : "Accept"}
-                            </button>
-
-                            <button
-                              type="button"
-                              disabled={busyOrder === order._id}
-                              onClick={() =>
-                                handleOrderStatus(order._id, "rejected")
-                              }
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        )}
-
-                        {order.status === "accepted" && (
-                          <div className="order-actions">
-                            <button
-                              type="button"
-                              disabled={busyOrder === order._id}
-                              onClick={() =>
-                                handleOrderStatus(order._id, "completed")
-                              }
-                            >
-                              Mark as completed
-                            </button>
-                          </div>
-                        )}
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </>
-          ) : (
-            <>
-              <section className="dashboard-section">
-                <h3>Available products</h3>
-
-                {products.length === 0 ? (
-                  <p className="empty-state">
-                    No products are currently available.
-                  </p>
-                ) : (
-                  <div className="products-grid">
-                    {products.map((product) => (
-                      <article className="product-card" key={product._id}>
-                        <h4>{product.name}</h4>
-                        <p>Category: {product.category}</p>
-                        <p>
-                          Farmer: {product.farmerName || "Agrox Farmer"}
-                        </p>
-                        <p>
-                          Price: {formatMoney(product.pricePerKg)} / kg
-                        </p>
-                        <p>Available stock: {product.quantity} kg</p>
-
-                        {Number(product.quantity) > 0 ? (
-                          <>
-                            <label htmlFor={`quantity-${product._id}`}>
-                              Order quantity (kg)
-                            </label>
-
-                            <input
-                              id={`quantity-${product._id}`}
-                              type="number"
-                              min="0.01"
-                              max={product.quantity}
-                              step="0.01"
-                              value={quantities[product._id] ?? ""}
-                              onChange={(event) =>
-                                setQuantities((previous) => ({
-                                  ...previous,
-                                  [product._id]: event.target.value,
-                                }))
-                              }
-                              placeholder="Enter quantity"
-                            />
-
-                            <button
-                              type="button"
-                              disabled={busyProduct === product._id}
-                              onClick={() => handlePlaceOrder(product)}
-                            >
-                              {busyProduct === product._id
-                                ? "Placing order..."
-                                : "Place order"}
-                            </button>
-                          </>
-                        ) : (
-                          <p className="out-of-stock">Out of stock</p>
-                        )}
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              <section className="dashboard-section">
-                <div className="order-history-heading">
-                  <div>
-                    <h3>My order history</h3>
-                    <p>Track all your agricultural purchases.</p>
-                  </div>
-
+                {isFarmer && order.status === "accepted" && (
                   <button
                     type="button"
-                    className="secondary-button"
-                    onClick={refreshOrders}
-                    disabled={refreshing}
+                    disabled={updatingOrderId !== null}
+                    onClick={() =>
+                      handleUpdateOrderStatus(
+                        order._id,
+                        "completed"
+                      )
+                    }
+                    style={{
+                      width: "100%",
+                      marginTop: "18px",
+                      padding: "11px",
+                      color: "#ffffff",
+                      background: "#287747",
+                      border: "none",
+                      borderRadius: "7px",
+                      cursor: "pointer",
+                    }}
                   >
-                    {refreshing ? "Refreshing..." : "Refresh orders"}
+                    {updatingOrderId === order._id
+                      ? "Updating..."
+                      : "Complete Order"}
                   </button>
-                </div>
-
-                {orders.length === 0 ? (
-                  <p className="empty-state">
-                    You haven't placed any orders yet.
-                  </p>
-                ) : (
-                  <div className="order-list">
-                    {orders.map((order) => (
-                      <article className="order-card" key={order._id}>
-                        <h4>{order.productName}</h4>
-
-                        <p>Quantity: {order.quantity} kg</p>
-
-                        <p>
-                          Price per kg: {formatMoney(order.pricePerKg)}
-                        </p>
-
-                        <p>
-                          Total: <strong>{formatMoney(order.totalPrice)}</strong>
-                        </p>
-
-                        <p>
-                          Status:{" "}
-                          <span className={`order-status status-${order.status}`}>
-                            {order.status}
-                          </span>
-                        </p>
-
-                        <p>Ordered: {formatDate(order.createdAt)}</p>
-                      </article>
-                    ))}
-                  </div>
                 )}
-              </section>
-            </>
-          )}
-        </>
-      )}
-    </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </section>
   );
 }
 
 export default Dashboard;
+

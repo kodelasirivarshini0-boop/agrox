@@ -928,3 +928,75 @@ th {
   }
 }
 
+
+/* Marketplace search and filtering */
+
+.marketplace-controls {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 12px;
+  max-width: 1100px;
+  margin: 28px auto 12px;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+.marketplace-controls input,
+.marketplace-controls select {
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid #d5dfd4;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #173f2b;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.marketplace-controls input:focus,
+.marketplace-controls select:focus {
+  outline: 2px solid #38865a;
+  outline-offset: 2px;
+}
+
+.product-count {
+  max-width: 1060px;
+  margin: 12px auto 20px;
+  padding: 0 20px;
+  color: #647568;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+/* Buttons for empty state and retry actions */
+
+.empty-state button,
+.error-message button {
+  padding: 10px 16px;
+  margin-top: 8px;
+  border: none;
+  border-radius: 7px;
+  background: #287448;
+  color: #ffffff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.empty-state button:hover,
+.error-message button:hover {
+  background: #1d5d38;
+}
+
+/* Responsive marketplace layout */
+
+@media (max-width: 700px) {
+  .marketplace-controls {
+    grid-template-columns: 1fr;
+    padding: 0 16px;
+  }
+
+  .product-count {
+    padding: 0 16px;
+  }
+}
