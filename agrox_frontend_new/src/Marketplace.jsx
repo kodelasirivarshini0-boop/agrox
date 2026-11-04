@@ -11,223 +11,160 @@ function Marketplace() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const [currentUser, setCurrentUser] = useState(() => {
     try {
       const savedUser = localStorage.getItem("agroxUser");
       const savedToken = localStorage.getItem("agroxToken");
 
-      if (savedUser && savedToken) {
-        return JSON.parse(savedUser);
-      }
-    } catch (err) {
-      console.error("Could not restore Agrox session:", err);
+      return savedUser && savedToken ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
     }
-
-    return null;
   });
 
-  // Load products for the public marketplace.
   const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    setError("");
-
     try {
+      setError("");
       const response = await axios.get(API_URL);
-      setProducts(response.data);
+      setProducts(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
-      console.error("Error fetching products:", err);
-
       setError(
-        "Unable to load products. Please check that the backend and MongoDB are running."
+        err.response?.data?.message ||
+          "Unable to load products. Please check that the backend is running."
       );
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Handle successful registration or login.
-  function handleLoginSuccess({ token, user }) {
-    localStorage.setItem("agroxToken", token);
-    localStorage.setItem("agroxUser", JSON.stringify(user));
-
-    setCurrentUser(user);
-    setError("");
-  }
-
-  // Log out the current user.
-  function handleLogout() {
-    localStorage.removeItem("agroxToken");
-    localStorage.removeItem("agroxUser");
-
-    setCurrentUser(null);
-  }
-
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
+  const handleLoginSuccess = (user, token) => {
+    localStorage.setItem("agroxUser", JSON.stringify(user));
+    localStorage.setItem("agroxToken", token);
+    setCurrentUser(user);
+    fetchProducts();
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("agroxUser");
+    localStorage.removeItem("agroxToken");
+    setCurrentUser(null);
+  };
+
   return (
-    <div className="marketplace-page">
-      {/* Navigation */}
-      <nav className="navbar">
-        <a className="logo" href="#home">
+    <div className="agrox-app">
+      {/* Main navigation: rendered only once */}
+      <nav className="agrox-nav">
+        <a className="agrox-brand" href="#home">
           🌱 Agrox
         </a>
 
-        <div className="nav-links">
+        <div className="agrox-nav-links">
           <a href="#home">Home</a>
-          <a href="#products">Marketplace</a>
-
-          {currentUser?.role === "farmer" && (
-            <a href="#dashboard-add-product">Add Product</a>
-          )}
-
+          <a href="#marketplace">Marketplace</a>
           <a href="#account">
             {currentUser ? "Dashboard" : "Login / Register"}
           </a>
         </div>
       </nav>
 
-      {/* Hero section */}
+      {/* Main hero: rendered only once */}
       <header className="hero" id="home">
-        <div className="hero-content">
-          <p className="hero-tagline">
-            FARM FRESH • DIRECT TRADE
-          </p>
-
-          <h1>
-            From Farmers
-            <br />
-            to Your Table.
-          </h1>
-
-          <p className="hero-description">
-            Agrox connects farmers and buyers to make
-            agricultural trading simpler and more transparent.
-          </p>
-
-          <a href="#products" className="hero-button">
-            Explore Products
-          </a>
-        </div>
+        <p className="hero-eyebrow">FARM DIRECT. TRADE SMART.</p>
+        <h1>Welcome to Agrox</h1>
+        <p>
+          Connecting farmers and buyers through a transparent
+          agricultural marketplace.
+        </p>
+        <a href="#marketplace" className="hero-button">
+          Explore Products
+        </a>
       </header>
 
-      {/* Show either the login form or one role-specific dashboard */}
-      <section id="account">
+      {/* Account and dashboard */}
+      <section className="account-section" id="account">
         {currentUser ? (
           <Dashboard
             user={currentUser}
             onLogout={handleLogout}
           />
         ) : (
-          <Auth onLoginSuccess={handleLoginSuccess} />
+          <div className="auth-wrapper">
+            <Auth onLoginSuccess={handleLoginSuccess} />
+          </div>
         )}
       </section>
 
       {/* Public marketplace */}
-      <main className="products-section" id="products">
+      <section className="marketplace-section" id="marketplace">
         <div className="section-heading">
-          <p className="section-label">AGROX MARKETPLACE</p>
-
-          <h2>Fresh From Our Farmers</h2>
-
-          <p>
-            Discover agricultural products listed on Agrox.
-          </p>
+          <p className="section-eyebrow">FRESH FROM THE FARM</p>
+          <h2>Explore Agricultural Products</h2>
+          <p>Discover produce listed by farmers.</p>
         </div>
 
-        {loading && (
-          <p className="status-message">Loading products...</p>
-        )}
+        {loading && <p className="loading">Loading products...</p>}
 
-        {!loading && error && (
-          <div className="status-message error-message">
-            <p>{error}</p>
-
+        {error && (
+          <div className="error-message" role="alert">
+            {error}
             <button type="button" onClick={fetchProducts}>
-              Try Again
+              Retry
             </button>
           </div>
         )}
 
         {!loading && !error && products.length === 0 && (
-          <p className="status-message">
-            No products available yet. Farmers can add the first product.
+          <p className="empty-state">
+            No products have been listed yet. Please check again later.
           </p>
         )}
 
-        {!loading && !error && products.length > 0 && (
+        {!loading && products.length > 0 && (
           <div className="products-grid">
             {products.map((product) => (
               <article className="product-card" key={product._id}>
-                <div className="product-icon" aria-hidden="true">
+                <div className="product-card-icon" aria-hidden="true">
                   🌾
                 </div>
 
-                <div className="product-details">
-                  <span className="product-category">
-                    {product.category}
-                  </span>
+                <p className="product-category">
+                  {product.category}
+                </p>
 
-                  <h3>{product.name}</h3>
+                <h3>{product.name}</h3>
 
-                  <p className="farmer-name">
-                    👨‍🌾 {product.farmerName || "Agrox Farmer"}
-                  </p>
+                <p>
+                  Farmer: {product.farmerName || "Agrox Farmer"}
+                </p>
 
-                  {product.location && (
-                    <p className="product-location">
-                      📍 {product.location}
-                    </p>
-                  )}
+                <p>
+                  Location: {product.location || "Not specified"}
+                </p>
 
-                  <div className="product-info">
-                    <div>
-                      <span className="info-label">
-                        Available quantity
-                      </span>
+                <p className="product-price">
+                  ₹{Number(product.pricePerKg).toFixed(2)} / kg
+                </p>
 
-                      <p>{product.quantity} kg</p>
-                    </div>
+                <p>
+                  Available: {product.quantity} kg
+                </p>
 
-                    <div>
-                      <span className="info-label">
-                        Price per kg
-                      </span>
-
-                      <p className="product-price">
-                        ₹{Number(product.pricePerKg).toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                {Number(product.quantity) <= 0 && (
+                  <span className="out-of-stock">Out of stock</span>
+                )}
               </article>
             ))}
           </div>
         )}
+      </section>
 
-        <button
-          type="button"
-          className="secondary-button refresh-products-button"
-          onClick={fetchProducts}
-          disabled={loading}
-        >
-          {loading ? "Refreshing..." : "Refresh Marketplace"}
-        </button>
-      </main>
-
-      {/* Footer */}
-      <footer className="footer">
-        <h2>🌱 Agrox</h2>
-
-        <p>
-          Building a better connection between farmers and buyers.
-        </p>
-
-        <p className="footer-note">
-          © {new Date().getFullYear()} Agrox. All rights reserved.
-        </p>
+      <footer className="agrox-footer">
+        <p>🌱 Agrox — Farm Direct. Trade Smart.</p>
+        <p>Connecting farmers and buyers through technology.</p>
       </footer>
     </div>
   );
