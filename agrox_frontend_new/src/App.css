@@ -1000,3 +1000,18 @@ th {
     padding: 0 16px;
   }
 }
+/* Fix invisible Login button text */
+button,
+.btn,
+.login-btn,
+button[type="submit"] {
+  color: #244B35;
+}
+
+/* Keep button text visible on hover */
+button:hover,
+.btn:hover,
+.login-btn:hover,
+button[type="submit"]:hover {
+  color: #244B35;
+}
